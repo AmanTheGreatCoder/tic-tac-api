@@ -11,7 +11,6 @@ const games = {};
 
 wss.on('connection', (connection) => {
   console.log('Client Connected');
-
   const id = v4();
   clients[id] = connection;
   let payload = {
@@ -30,26 +29,16 @@ wss.on('connection', (connection) => {
 
   connection.on('message', (res) => {
     try {
-      const data = JSON.parse(res.toString('utf-8'));
+      const data = JSON.parse(res?.toString('utf-8'));
+      let clientId = data?.clientId;
+      let gameId = data?.gameId;
       console.log('Message Recieved', data);
-      connection.send(
-        JSON.stringify({
-          name: 'clientsData',
-          data: clients,
-        })
-      );
-      connection.send(
-        JSON.stringify({
-          name: 'gamesData',
-          data: games,
-        })
-      );
       if (data?.method === 'create') {
-        const clientId = data.clientId;
-        const gameId = v4().substring(0, 4);
+        clientId = data.clientId;
+        gameId = v4().substring(0, 4);
         games[gameId] = {
           id: gameId,
-          balls: 20,
+          clientIds: [clientId],
         };
         const payload = {
           method: 'create',
@@ -57,15 +46,28 @@ wss.on('connection', (connection) => {
         };
         const con = clients[clientId];
         con.send(JSON.stringify(payload));
-      } else if (data.method === 'join') {
-        const clientId = data.clientId;
-        const gameId = data.gameId;
+      }
+
+      if (data?.method === 'join') {
         const con = clients[clientId];
         if (games[gameId]) {
+          games[gameId].clientIds.push(clientId);
           con.send(JSON.stringify(games[gameId]));
         } else {
           // game Id does not exits
         }
+      }
+
+      if (data.method === 'gameData') {
+        const payload = {
+          method: 'gameData',
+          game: games[gameId],
+        };
+        const con = clients[clientId];
+        con.send(JSON.stringify(payload));
+      }
+
+      if (data.method === 'tileClick') {
       }
     } catch (err) {
       console.log('error in message method', err);
